@@ -22,6 +22,7 @@ const { wmv_parse } = require('../wmv');
 const { wowhead_parse } = require('../wowhead');
 const InstallType = require('../install-type');
 const charTextureOverlay = require('../ui/char-texture-overlay');
+const CharacterSourceTextures = require('../ui/character-source-textures');
 const PNGWriter = require('../png-writer');
 const { EQUIPMENT_SLOTS, SHOULDER_SLOT_L, SHOULDER_SLOT_R, ATTACHMENT_ID, get_slot_name, get_attachment_ids_for_slot, get_slot_layer } = require('../wow/EquipmentSlots');
 const DBItems = require('../db/caches/DBItems');
@@ -110,6 +111,7 @@ let active_model;
 const skinned_model_renderers = new Map();
 
 const chr_materials = new Map();
+const source_textures = new CharacterSourceTextures();
 
 // equipment model renderers (slot_id -> { renderers: [{renderer, attachment_id}], item_id })
 const equipment_model_renderers = new Map();
@@ -254,6 +256,7 @@ const THUMBNAIL_PRESETS = {
 };
 
 function reset_module_state() {
+	source_textures.clear();
 	active_skins.clear();
 	dispose_skinned_models();
 	clear_materials();
@@ -868,6 +871,7 @@ async function load_character_model(core, file_data_id) {
 
 	core.view.chrModelLoading = true;
 	log.write('Loading character model %s', file_data_id);
+	source_textures.clear();
 
 	core.view.modelViewerSkins.splice(0, core.view.modelViewerSkins.length);
 	core.view.modelViewerSkinsSelection.splice(0, core.view.modelViewerSkinsSelection.length);
@@ -929,6 +933,7 @@ async function load_character_model(core, file_data_id) {
 
 		// refresh appearance after model is fully loaded
 		await refresh_character_appearance(core);
+		await source_textures.load(active_renderer.m2);
 
 	} catch (e) {
 		core.setToast('error', 'Unable to load model ' + file_data_id, { 'View log': () => log.openRuntimeLog() }, -1);
@@ -2116,49 +2121,52 @@ const export_chr_texture = async (core) => {
 		return;
 	}
 
-	const export_paths = core.openLastExportStream();
-
-	core.setToast('progress', 'exporting texture, hold on...', null, -1, false);
-
+	const source = source_textures.get(active_canvas);
 	let texture_type = null;
 	let chr_material = null;
-	for (const [type, material] of chr_materials) {
-		if (material.getCanvas() === active_canvas) {
-			texture_type = type;
-			chr_material = material;
-			break;
+	if (!source) {
+		for (const [type, material] of chr_materials) {
+			if (material.getCanvas() === active_canvas) {
+				texture_type = type;
+				chr_material = material;
+				break;
+			}
+		}
+		if (!chr_material) {
+			core.setToast('error', 'unable to find material for active texture', null, -1);
+			return;
 		}
 	}
 
-	if (!chr_material) {
-		core.setToast('error', 'unable to find material for active texture', null, -1);
+	const export_paths = core.openLastExportStream();
+	core.setToast('progress', 'exporting texture, hold on...', null, -1, false);
+	try {
+		let texture_file_name;
+		let buffer;
+		if (source) {
+			texture_file_name = ExportHelper.replaceExtension(source.fileName, '.png');
+			// Decode directly from the BLP to preserve RGB values under transparent pixels.
+			buffer = source.blp.toPNG();
+		} else {
+			const file_name = listfile.getByID(active_model) || ('unknown/' + active_model + '.m2');
+			const base_name = path.basename(file_name, path.extname(file_name));
+			texture_file_name = path.join(path.dirname(file_name), base_name + '_texture_' + texture_type + '.png');
+			const png = new PNGWriter(active_canvas.width, active_canvas.height);
+			png.getPixelData().set(chr_material.getRawPixels());
+			buffer = png.getBuffer();
+		}
+
+		const export_path = ExportHelper.getExportPath(texture_file_name);
+		await buffer.writeToFile(export_path);
+		await export_paths?.writeLine('PNG:' + export_path);
+		log.write('exported character texture to %s', export_path);
+		core.setToast('success', util.format('exported texture to %s', export_path), { 'view in explorer': () => nw.Shell.openItem(path.dirname(export_path)) }, -1);
+	} catch (e) {
+		log.write('Failed to export character texture: %s', e.message);
+		core.setToast('error', 'Unable to export texture', { 'View log': () => log.openRuntimeLog() }, -1);
+	} finally {
 		export_paths?.close();
-		return;
 	}
-
-	const file_name = listfile.getByID(active_model);
-	const base_name = path.basename(file_name, path.extname(file_name));
-	const dir_name = path.dirname(file_name);
-	const texture_file_name = path.join(dir_name, base_name + '_texture_' + texture_type + '.png');
-	const export_path = ExportHelper.getExportPath(texture_file_name);
-	const out_dir = path.dirname(export_path);
-
-	const pixels = chr_material.getRawPixels();
-	const width = active_canvas.width;
-	const height = active_canvas.height;
-
-	const png = new PNGWriter(width, height);
-	const pixel_data = png.getPixelData();
-	pixel_data.set(pixels);
-
-	const buffer = png.getBuffer();
-	await buffer.writeToFile(export_path);
-	await export_paths?.writeLine('PNG:' + export_path);
-
-	log.write('exported character texture to %s', export_path);
-	core.setToast('success', util.format('exported texture to %s', export_path), { 'view in explorer': () => nw.Shell.openItem(out_dir) }, -1);
-
-	export_paths?.close();
 };
 
 //endregion
@@ -2409,6 +2417,7 @@ module.exports = {
 						<div class="character-export-menu" v-show="$core.view.chrExportMenu == 'textures'">
 							<div class="texture-preview-panel" id="chr-texture-preview">
 							</div>
+							<div id="chr-texture-label" style="overflow-wrap: anywhere; text-align: center;"></div>
 							<div class="texture-menu-controls">
 								<input type="button" value="" class="ui-image-button texture-prev-button" @click="chr_prev_overlay"/>
 								<input type="button" value="Export Texture" class="ui-button texture-export-button" @click="chr_export_overlay"/>

@@ -31,7 +31,7 @@ class CharMaterialRenderer {
 		const canvas = document.createElement('canvas');
 		canvas.id = 'charMaterialCanvas-' + textureLayer;
 
-		overlay.add(canvas);
+		overlay.add(canvas, 'Composited texture ' + textureLayer);
 
 		canvas.width = width;
 		canvas.height = height;
