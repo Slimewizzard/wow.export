@@ -1,0 +1,98 @@
+[
+  {
+    "schema": "room-building.inventory.v1",
+    "label": "livingroom",
+    "items": [
+      {
+        "decorID": 1704,
+        "name": "Old Salt's Fireplace",
+        "count": 1,
+        "variants": [
+          {
+            "recordID": 1704,
+            "total": 1,
+            "name": "Old Salt's Fireplace",
+            "invalid": false,
+            "contentType": 3,
+            "numMissing": 1
+          }
+        ]
+      },
+      {
+        "decorID": 8912,
+        "name": "Wolf Pelt Rug",
+        "count": 1,
+        "variants": [
+          {
+            "recordID": 8912,
+            "total": 1,
+            "name": "Wolf Pelt Rug",
+            "invalid": false,
+            "contentType": 3,
+            "numMissing": 0
+          }
+        ]
+      },
+      {
+        "decorID": 21950,
+        "name": "Square Woolen Rug",
+        "count": 1,
+        "variants": [
+          {
+            "recordID": 21950,
+            "total": 1,
+            "name": "Square Woolen Rug",
+            "invalid": false,
+            "contentType": 3,
+            "numMissing": 0
+          }
+        ]
+      },
+      {
+        "decorID": 1738,
+        "name": "Wide Charming Couch",
+        "count": 2,
+        "variants": [
+          {
+            "recordID": 1738,
+            "total": 2,
+            "name": "Wide Charming Couch",
+            "invalid": false,
+            "contentType": 3,
+            "numMissing": 2
+          }
+        ]
+      },
+      {
+        "decorID": 9143,
+        "name": "Tied-Right Leather Curtains",
+        "count": 1,
+        "variants": [
+          {
+            "recordID": 9143,
+            "total": 1,
+            "name": "Tied-Right Leather Curtains",
+            "invalid": false,
+            "contentType": 3,
+            "numMissing": 0
+          }
+        ]
+      }
+    ],
+    "otherGroups": [
+      {
+        "contentType": 2,
+        "entries": {
+          "1": {
+            "recordID": 9,
+            "total": 1,
+            "name": "Octagon Room (Medium)",
+            "invalid": false,
+            "contentType": 2,
+            "numMissing": 0
+          }
+        }
+      }
+    ]
+  }
+]

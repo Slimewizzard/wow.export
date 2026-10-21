@@ -1,0 +1,9 @@
+## Interface: 120100
+## Title: RoomProbe
+## Notes: Named room inventories and selected decor colour captures.
+## Author: RoomBuilding
+## Version: 0.4.0
+## SavedVariables: RoomProbeDB
+
+RoomProbe.lua
+Rooms.lua
