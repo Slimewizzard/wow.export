@@ -5,6 +5,8 @@
 //      OSX: ~/Library/Application Support/<name>/Default\wow.export
 //      Linux: ~/.config/<name>/wow.export
 {
+	"recentWarcraft3": "",
+	"warcraft3BrowserWidth": 0.34,
 	"enableBinaryListfile": true,
 	"listfileBinarySource": "https://www.kruithne.net/wow.export/data/listfile/%s",
 	"listfileURL": "https://github.com/wowdev/wow-listfile/releases/latest/download/community-listfile.csv",

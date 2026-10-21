@@ -29,7 +29,8 @@ const scrollPositions = {};
 
 const makeNewView = () => {
 	return {
-		installType: 0, // Active install type (MPQ or CASC).
+		installType: 0, // Active install type (MPQ, WoW CASC or Warcraft III).
+		warcraft3: null, // Independent WC3 CASC/TVFS source.
 		isBusy: 0, // To prevent race-conditions with multiple tasks, we adjust isBusy to indicate blocking states.
 		isDev: !BUILD_RELEASE, // True if in development environment.
 		isLoading: false, // Controls whether the loading overlay is visible.

@@ -4,6 +4,8 @@ const generics = require('../generics');
 const log = require('../log');
 const ExternalLinks = require('../external-links');
 const InstallType = require('../install-type');
+const { markRaw } = require('vue');
+const { Warcraft3Storage } = require('../warcraft3/storage');
 
 const CASCLocal = require('../casc/casc-source-local');
 const CASCRemote = require('../casc/casc-source-remote');
@@ -17,6 +19,14 @@ let legacy_selector = null;
 module.exports = {
 	template: `
 		<div id="source-select" v-if="!$core.view.sourceSelectShowBuildSelect">
+			<div id="source-warcraft3" @click="click_source_warcraft3">
+				<div class="source-icon"></div>
+				<div class="source-content">
+					<div class="source-title">Open Warcraft III: Reforged</div>
+					<div class="source-subtitle">Browse classic and Reforged assets, preview animations, and export models and textures</div>
+					<div v-if="$core.view.config.recentWarcraft3" class="source-last-opened">Last Opened: <span class="link" @click.stop="open_warcraft3($core.view.config.recentWarcraft3)">{{ $core.view.config.recentWarcraft3 }}</span></div>
+				</div>
+			</div>
 			<div id="source-local" @click="click_source_local">
 				<div class="source-icon"></div>
 				<div class="source-content">
@@ -70,6 +80,32 @@ module.exports = {
 	},
 
 	methods: {
+		click_source_warcraft3() {
+			if (this.$core.view.isBusy) return;
+			const input = document.createElement('input');
+			input.type = 'file'; input.setAttribute('nwdirectory', '');
+			input.setAttribute('nwdirectorydesc', 'Select Warcraft III (folder containing .build.info)');
+			input.onchange = () => { if (input.value) this.open_warcraft3(input.value); };
+			input.click();
+		},
+		async open_warcraft3(directory) {
+			if (this.$core.view.isBusy) return;
+			const lock = this.$core.create_busy_lock();
+			this.$core.hideToast();
+			this.$core.showLoadingScreen(1, 'Loading Warcraft III');
+			try {
+				const storage = await new Warcraft3Storage(directory).open(message => this.$core.view.loadingProgress = message);
+				this.$core.view.warcraft3 = markRaw(storage);
+				this.$core.view.config.recentWarcraft3 = directory;
+				this.$core.view.installType = InstallType.WARCRAFT3;
+				this.$modules.tab_warcraft3.setActive();
+			} catch (error) {
+				log.write('Failed to load Warcraft III: %o', error);
+				this.$core.setToast('error', error.message, null, -1);
+			} finally {
+				this.$core.hideLoadingScreen(); lock[Symbol.dispose]();
+			}
+		},
 		get_product_tag(product) {
 			const entry = constants.PRODUCTS.find(e => e.product === product);
 			return entry ? entry.tag : 'Unknown';

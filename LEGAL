@@ -206,3 +206,22 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+---------------------------------------------------------------------------------
+Warcraft III module
+
+Third-party sources, versions and local modifications are documented in
+src/js/warcraft3/THIRD_PARTY.md. Full license texts are included alongside the
+vendored libraries in src/js/warcraft3/vendor/:
+
+war3-model 4.0.1 — Copyright (c) 2017-2023 4eb0da — MIT
+    war3-model.LICENSE
+
+gl-matrix 3.3.0 — Copyright (c) 2015-2020 Brandon Jones, Colin MacKenzie IV — MIT
+    gl-matrix.LICENSE
+
+BLP1 JPEG decoder bundled in war3-model — Copyright 2011 notmasteryet — Apache 2.0
+    jpeg-decoder.LICENSE
+    Upstream modified the JPEG decoder for Blizzard BLP1 data.
+
+CascLib TVFS format reference — Copyright (c) 2014 Ladislav Zezula — MIT
+    CascLib.LICENSE

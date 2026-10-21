@@ -29,6 +29,7 @@ const MODULES = {
 	module_test_a: require('./modules/module_test_a'),
 	module_test_b: require('./modules/module_test_b'),
 	source_select: require('./modules/screen_source_select'),
+	tab_warcraft3: require('./modules/tab_warcraft3'),
 	settings: require('./modules/screen_settings'),
 	tab_home: require('./modules/tab_home'),
 	tab_maps: require('./modules/tab_maps'),
@@ -316,6 +317,8 @@ function go_to_landing() {
 		set_active('source_select');
 	else if (core.view.installType === InstallType.MPQ)
 		set_active('legacy_tab_home');
+	else if (core.view.installType === InstallType.WARCRAFT3)
+		set_active('tab_warcraft3');
 	else
 		set_active('tab_home');
 }
