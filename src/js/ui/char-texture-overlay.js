@@ -9,6 +9,7 @@ let $overlay;
 let $buttons;
 
 const layers = [];
+const labels = new WeakMap();
 let active_layer = null;
 
 function get_element() {
@@ -30,8 +31,15 @@ function update_button_visibility() {
 		$buttons.style.display = 'none';
 }
 
-function add(canvas) {
+function update_label() {
+	const label = document.getElementById('chr-texture-label');
+	if (label)
+		label.textContent = active_layer ? (labels.get(active_layer) || '') : '';
+}
+
+function add(canvas, label = '') {
 	layers.push(canvas);
+	labels.set(canvas, label);
 
 	if (active_layer === null) {
 		active_layer = canvas;
@@ -40,11 +48,16 @@ function add(canvas) {
 			element.appendChild(canvas);
 	}
 
+	update_label();
 	update_button_visibility();
 }
 
 function remove(canvas) {
-	layers.splice(layers.indexOf(canvas), 1);
+	const index = layers.indexOf(canvas);
+	if (index === -1)
+		return;
+	layers.splice(index, 1);
+	labels.delete(canvas);
 
 	if (canvas === active_layer) {
 		const element = get_element();
@@ -53,10 +66,14 @@ function remove(canvas) {
 
 		active_layer = null;
 
-		if (layers.length > 0)
+		if (layers.length > 0) {
 			active_layer = layers[layers.length - 1];
+			if (element)
+				element.appendChild(active_layer);
+		}
 	}
 
+	update_label();
 	update_button_visibility();
 }
 
@@ -67,6 +84,7 @@ function ensure_active_layer_attached() {
 			if (element && active_layer.parentNode !== element)
 				element.appendChild(active_layer);
 		}
+		update_label();
 	});
 }
 
@@ -88,6 +106,7 @@ core.events.on('click-chr-next-overlay', () => {
 
 		element.appendChild(next);
 		active_layer = next;
+		update_label();
 	}
 });
 
@@ -106,6 +125,7 @@ core.events.on('click-chr-prev-overlay', () => {
 
 		element.appendChild(next);
 		active_layer = next;
+		update_label();
 	}
 });
 
