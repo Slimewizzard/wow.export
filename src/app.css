@@ -590,17 +590,18 @@ body {
 	height: 100%;
 	justify-content: center;
 	align-items: center;
-	gap: 30px;
+	gap: 18px;
+	overflow-y: auto;
 }
 #source-select > div {
 	width: 700px;
-	min-height: 120px;
+	min-height: 96px;
 	border: 3px dashed var(--font-faded);
 	border-radius: 15px;
 	cursor: pointer;
 	display: flex;
 	align-items: center;
-	padding: 30px;
+	padding: 20px 30px;
 	gap: 30px;
 	transition: border-color 0.2s;
 }
@@ -624,6 +625,53 @@ body {
 #source-select #source-legacy .source-icon {
 	background-image: url(./images/mpq.svg);
 }
+#source-select #source-warcraft3 .source-icon {
+	background-image: url(./images/mpq.svg);
+}
+
+.wc3-tab { display: flex; height: 100%; min-height: 0; gap: 6px; padding: 16px; box-sizing: border-box; }
+.wc3-tab.wc3-toastgap { padding-top: 46px; }
+.wc3-browser { display: flex; flex: 0 0 auto; flex-direction: column; width: clamp(240px, var(--wc3-browser-width, 34%), calc(100% - 340px)); gap: 10px; min-height: 0; }
+.wc3-divider { flex: 0 0 8px; align-self: stretch; position: relative; cursor: col-resize; touch-action: none; user-select: none; border-radius: 4px; }
+.wc3-divider::after { content: ''; position: absolute; left: 3px; top: 0; bottom: 0; width: 2px; border-radius: 2px; background: #556171; }
+.wc3-divider:hover, .wc3-divider:active, .wc3-divider:focus-visible { background: #315b7b; outline: none; }
+.wc3-divider:hover::after, .wc3-divider:focus-visible::after { background: #83a5cb; }
+.wc3-heading { font-size: 20px; font-weight: bold; }
+.wc3-heading small { font-size: 12px; opacity: 0.65; margin-left: 6px; }
+.wc3-filters, .wc3-export-options, .wc3-output { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.wc3-filters select { flex: 1; min-width: 100px; }
+.wc3-file-list { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.wc3-file-list > * { width: 100%; display: flex; flex-direction: column; min-height: 0; }
+.wc3-file-list .ui-listbox { flex: 1; min-height: 0; }
+.wc3-inspector { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.wc3-file-title { font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wc3-meta, .wc3-hint { font-size: 12px; opacity: 0.72; }
+.wc3-stage { position: relative; flex: 1; min-height: 140px; overflow: auto; display: flex; align-items: center; justify-content: center; background: #0e1118; border: 1px solid #333a48; border-radius: 5px; }
+.wc3-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+.wc3-stage pre { align-self: flex-start; padding: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.wc3-texture { max-width: 100%; max-height: 100%; object-fit: contain; background: repeating-conic-gradient(#444 0 25%, #292929 0 50%) 0 / 16px 16px; }
+.wc3-empty { position: relative; padding: 30px; text-align: center; opacity: 0.8; }
+.wc3-overlay { position: absolute; inset: 0; display: grid; place-items: center; background: #10151ddd; }
+.wc3-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.wc3-controls input[type=color] { width: 36px; height: 28px; padding: 1px; }
+.wc3-controls label { display: flex; align-items: center; gap: 4px; }
+.wc3-timeline { flex-basis: 100%; width: 100%; }
+.wc3-export { border-top: 1px solid #333a48; padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.wc3-output { font-size: 12px; }
+.wc3-export-results { max-height: 130px; overflow: auto; font-size: 12px; }
+.wc3-export-result { display: flex; align-items: center; gap: 8px; padding-top: 6px; }
+.wc3-export-result span { flex: 1; min-width: 0; overflow-wrap: anywhere; user-select: text; }
+.wc3-export-result button { flex-shrink: 0; }
+.wc3-output span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wc3-error { color: #ff9e9e; padding: 8px; background: #49252c; border-radius: 4px; }
+.wc3-warnings { max-height: 120px; overflow: auto; color: #e5c98c; font-size: 12px; }
+.wc3-tab button, .wc3-tab select { cursor: pointer; }
+.wc3-tab button:disabled { cursor: default; opacity: 0.5; }
+.wc3-tab button, .wc3-tab select, .wc3-tab input[type=search] { font: inherit; font-size: 13px; color: var(--font-main, #e2e7ee); background: #222934; border: 1px solid #556171; border-radius: 4px; padding: 7px 9px; box-sizing: border-box; }
+.wc3-tab select option { background: #222934; }
+.wc3-tab button:hover:not(:disabled) { background: #364355; border-color: #83a5cb; }
+.wc3-tab input[type=search]:focus { outline: 1px solid #83a5cb; }
+.wc3-export-options button:first-of-type { background: #315b7b; border-color: #6d9cbf; }
 #source-select > div .source-content {
 	display: flex;
 	flex-direction: column;
