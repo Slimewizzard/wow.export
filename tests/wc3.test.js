@@ -136,6 +136,19 @@ test('preview prefers ordinary Stand and frames invisible birth geometry', () =>
 	assert.ok(state.pitch > 0.7, 'flat ground models should not start nearly edge-on');
 });
 
+test('preview limits mesh bone references, not CPU-only helper node IDs', () => {
+	const Preview = require('../src/js/warcraft3/preview');
+	const model = { Nodes: [{ ObjectId: 500 }], Geosets: [{ SkinWeights16: new Uint16Array([217, 0, 0, 0, 255, 0, 0, 0]) }] };
+	assert.doesNotThrow(() => Preview.validateSkinning(model));
+	model.Geosets[0].SkinWeights16[0] = 256;
+	model.Geosets[0].SkinWeights = new Uint8Array(model.Geosets[0].SkinWeights16);
+	assert.throws(() => Preview.validateSkinning(model), /mesh bones.*254/);
+	model.Geosets = [{ Groups: [[0, 253]] }];
+	assert.doesNotThrow(() => Preview.validateSkinning(model));
+	model.Geosets[0].Groups[0].push(254);
+	assert.throws(() => Preview.validateSkinning(model), /mesh bones.*254/);
+});
+
 test('UI exports report exact nested paths and reveal existing files and batch results', async () => {
 	const component = require('../src/js/modules/tab_warcraft3');
 	const root = await fs.mkdtemp(path.join(os.tmpdir(), 'wow-wc3-test-'));
@@ -179,10 +192,63 @@ test('UI exports report exact nested paths and reveal existing files and batch r
 		context.selection = ['war3.w3mod/missing.txt']; context.storage.readFile = async () => { throw Error('Missing'); };
 		await context.exportSelection();
 		assert.equal(context.exportResults.length, 0); assert.equal(toast[2], null);
+		assert.match(context.error, /missing.txt: Missing/);
+		assert.match(toast[1], /1 failed.*missing.txt: Missing/);
 	} finally {
 		assert.equal(path.dirname(path.resolve(root)), path.resolve(os.tmpdir()));
 		assert.ok(path.basename(root).startsWith('wow-wc3-test-'));
 		await fs.rm(root, { recursive: true, force: true });
+	}
+});
+
+test('held animation keys and shared intervals remain unchanged across GLB samples and clips', async () => {
+	const chunk = (tag, bytes) => {
+		const header = Buffer.alloc(8); header.write(tag); header.writeUInt32LE(bytes.length, 4);
+		return Buffer.concat([header, bytes]);
+	};
+	const sequences = ['Stand Hit 1', 'Stand 4'].map(name => {
+		const bytes = Buffer.alloc(132); bytes.write(name); bytes.writeUInt32LE(1000, 84); return bytes;
+	});
+	// One held translation key makes the interpolator return the original key vector.
+	const helper = Buffer.alloc(128); helper.writeUInt32LE(128); helper.write('Held joint', 4);
+	helper.writeInt32LE(-1, 88); helper.write('KGTR', 96); helper.writeUInt32LE(1, 100); helper.writeInt32LE(-1, 108);
+	[1, 2, 3].forEach((v, i) => helper.writeFloatLE(v, 116 + i * 4));
+	const pivot = Buffer.alloc(12); [10, 20, 30].forEach((v, i) => pivot.writeFloatLE(v, i * 4));
+	const bytes = Buffer.concat([Buffer.from('MDLX'), chunk('SEQS', Buffer.concat(sequences)), chunk('HELP', helper), chunk('PIVT', pivot)]);
+	const storage = { readFile: async () => bytes };
+	const all = await createGLB(storage, 'held.mdx', { fps: 4 });
+	assert.equal(all.document.animations.length, 2);
+	const values = (result, animation) => {
+		const channel = animation.channels.find(c => c.target.path === 'translation');
+		const access = result.document.accessors[animation.samplers[channel.sampler].output];
+		const view = result.document.bufferViews[access.bufferView];
+		const start = 28 + result.data.readUInt32LE(12) + view.byteOffset;
+		return Array.from({ length: access.count * 3 }, (_, i) => result.data.readFloatLE(start + i * 4));
+	};
+	for (const [i, animation] of all.document.animations.entries()) {
+		assert.deepEqual(values(all, animation), Array.from({ length: 5 }, () => [11, 22, 33]).flat());
+		const single = await createGLB(storage, 'held.mdx', { fps: 4, sequence: i });
+		assert.deepEqual(values(all, animation), values(single, single.document.animations[0]));
+	}
+});
+
+test('real installation: Night Elf models with classic effects preview and export as GLB', { skip: !process.env.WC3_INSTALL }, async () => {
+	const storage = await new Warcraft3Storage(process.env.WC3_INSTALL).open();
+	const { parseModel, defaultSequence, war3 } = require('../src/js/warcraft3/model');
+	const Preview = require('../src/js/warcraft3/preview');
+	for (const relative of ['herofemaledemonhunter/herodemonhunter', 'druidofthetalon/druidofthetalon', 'runner/runner']) {
+		const name = 'war3.w3mod/_hd.w3mod/units/nightelf/' + relative + '.mdx';
+		const model = parseModel(await storage.readFile(name));
+		assert.doesNotThrow(() => Preview.validateSkinning(model));
+		const renderer = new war3.ModelRenderer(model);
+		renderer.setSequence(defaultSequence(model)); renderer.update(0);
+		assert.ok(renderer.rendererData.geosetAlpha.some(a => a > 0));
+		if (relative.startsWith('druidofthetalon/')) assert.ok(model.Nodes.some(n => n?.ObjectId >= 254));
+		assert.equal(model.ParticleEmitterPopcorns?.length || 0, 0);
+		const result = await createGLB(storage, name);
+		assert.equal(result.document.animations.length, model.Sequences.length);
+		assert.ok(result.document.meshes.length && result.document.images.length);
+		assert.equal(result.data.readUInt32LE(8), result.data.length);
 	}
 });
 

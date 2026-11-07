@@ -14,3 +14,7 @@
 
 # python cache folders
 __pycache__
+
+# Warcraft III native effect helper build intermediates.
+/tools/wc3-effects/bin/
+/tools/wc3-effects/obj/

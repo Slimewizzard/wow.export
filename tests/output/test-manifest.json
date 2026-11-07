@@ -1,0 +1,1 @@
+{"schema": "room-building.export.v1", "label": "test", "items": [{"decorID": 1, "name": "Long fixture", "count": 2, "status": "exported", "file": "fixture.glb"}, {"decorID": 2, "name": "Other fixture", "count": 1, "status": "exported", "file": "fixture.glb"}, {"decorID": 3, "name": "Missing", "count": 1, "status": "failed"}]}

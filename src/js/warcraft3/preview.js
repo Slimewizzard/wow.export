@@ -3,6 +3,20 @@ const { war3, defaultSequence } = require('./model');
 const { decodeTexture } = require('./textures');
 
 class Warcraft3Preview {
+	static validateSkinning(model) {
+		// Only mesh influences need a GPU matrix slot. Attachments, emitters and
+		// other helper nodes still animate on the CPU and may have higher IDs.
+		const check = id => {
+			if (id >= 254) throw new Error('This model uses mesh bones beyond the preview renderer’s 254-bone limit. Native and GLB exports remain available.');
+		};
+		for (const geoset of model.Geosets) {
+			const skin = geoset.SkinWeights16 || geoset.SkinWeights;
+			if (skin) {
+				for (let i = 0; i < skin.length; i += 8) for (let k = 0; k < 4; k++)
+					if (skin[i + 4 + k]) check(skin[i + k]);
+			} else for (const group of geoset.Groups) for (const id of group) check(id);
+		}
+	}
 	constructor(canvas, onFrame, onError) {
 		this.canvas = canvas; this.onFrame = onFrame; this.onError = onError;
 		this.gl = canvas.getContext('webgl2', { antialias: true, alpha: false, preserveDrawingBuffer: true });
@@ -29,7 +43,7 @@ class Warcraft3Preview {
 		canvas.addEventListener('wheel', e => { e.preventDefault(); this.distance = Math.max(0.1, Math.min(100000, this.distance * Math.exp(e.deltaY * 0.001))); }, { ...events, passive: false });
 	}
 	async load(storage, name, model) {
-		if (model.Nodes.some(n => n && n.ObjectId >= 254)) throw new Error('This model exceeds the preview renderer’s 254-node limit. Native and GLB exports remain available.');
+		Warcraft3Preview.validateSkinning(model);
 		const renderModel = model.Sequences.length ? model : { ...model, Sequences: [{ Name: 'Static', Interval: [0, 1], NonLooping: true }] };
 		this.renderer = new war3.ModelRenderer(renderModel);
 		this.renderer.setSequence(defaultSequence(renderModel));

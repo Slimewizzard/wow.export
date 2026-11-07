@@ -113,6 +113,7 @@ module.exports = {
 	// tag: Specific version tag.
 	PRODUCTS: [
 		{ product: 'wow', title: 'World of Warcraft', tag: 'Retail' },
+		{ product: 'wowf', title: 'World of Warcraft Forever (Prerelease)', tag: 'Forever' },
 		{ product: 'wowt', title: 'PTR: World of Warcraft', tag: 'PTR' },
 		{ product: 'wowxptr', title: 'PTR 2: World of Warcraft', tag: 'PTR 2'},
 		{ product: 'wow_beta', title: 'Beta: World of Warcraft', tag: 'Beta' },

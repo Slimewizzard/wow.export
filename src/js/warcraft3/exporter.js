@@ -69,6 +69,7 @@ async function createGLB(storage, name, options = {}) {
 	const model = parseModel(await storage.readFile(name));
 	const warnings = [];
 	const lod = options.lod ?? 0, fps = options.fps ?? 30, teamColor = options.teamColor ?? [1, 0, 0];
+	if (teamColor.length !== 3 || !Array.from(teamColor).every(c => Number.isFinite(c) && c >= 0 && c <= 1)) throw new Error('Team color must contain three values between 0 and 1');
 	if (!Number.isFinite(fps) || fps < 1 || fps > 120) throw new Error('Animation sampling rate must be between 1 and 120 fps');
 	const doc = {
 		asset: { version: '2.0', generator: 'wow.export Warcraft III', extras: { source: name, mdxVersion: model.Version } },
@@ -95,34 +96,48 @@ async function createGLB(storage, name, options = {}) {
 		}
 		return doc.accessors.push(entry) - 1;
 	}
-	const textureCache = new Map();
+	const textureCache = new Map(), teamTextures = new Map(), teamMaterials = [], teamFiles = new Map();
 	async function texture(id, role, ormId) {
 		const t = model.Textures[id]; if (!t) return undefined;
 		const key = id + ':' + role + ':' + ormId;
 		if (textureCache.has(key)) return textureCache.get(key);
 		try {
-			let image;
+			let image, untinted, mask;
 			if (t.ReplaceableId === 1) image = { width: 1, height: 1, data: Uint8ClampedArray.from([...teamColor.map(c => c * 255), 255]) };
 			else {
 				const resolved = storage.resolveTexture(t.Image, name);
 				if (!resolved) { if (t.Image) warnings.push('Missing texture: ' + t.Image); return undefined; }
 				image = decodeTexture(await storage.readFile(resolved));
 			}
+			if (options.editableTeamColor && role === 'base' && t.ReplaceableId === 1) {
+				untinted = { width: 1, height: 1, data: new Uint8ClampedArray([255, 255, 255, 255]) };
+				mask = untinted;
+			}
 			if (role === 'base' && ormId !== undefined && model.Textures[ormId]?.Image) {
 				const resolved = storage.resolveTexture(model.Textures[ormId].Image, name);
 				if (resolved) {
 					const orm = decodeTexture(await storage.readFile(resolved));
+					if (options.editableTeamColor) {
+						untinted = { ...image, data: image.data.slice() };
+						mask = { width: image.width, height: image.height, data: new Uint8ClampedArray(image.data.length) };
+					}
 					for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) {
 						const i = (y * image.width + x) * 4;
 						const j = (Math.floor(y * orm.height / image.height) * orm.width + Math.floor(x * orm.width / image.width)) * 4;
-						const mask = orm.data[j + 3] / 255;
-						for (let c = 0; c < 3; c++) image.data[i + c] *= (1 - mask) + mask * teamColor[c];
+						const amount = orm.data[j + 3] / 255;
+						if (mask) { mask.data[i] = mask.data[i + 1] = mask.data[i + 2] = orm.data[j + 3]; mask.data[i + 3] = 255; }
+						for (let c = 0; c < 3; c++) image.data[i + c] *= (1 - amount) + amount * teamColor[c];
 					}
 				}
 			}
 			const imageId = doc.images.push({ name: t.Image || 'Team color', mimeType: 'image/png', bufferView: bufferView(png(image)) }) - 1;
 			const sampler = doc.samplers.push({ magFilter: 9729, minFilter: 9987, wrapS: t.Flags & 1 ? 10497 : 33071, wrapT: t.Flags & 2 ? 10497 : 33071 }) - 1;
 			const result = { index: doc.textures.push({ source: imageId, sampler }) - 1 };
+			if (untinted && mask && mask.data.some((v, i) => i % 4 === 0 && v > 0)) {
+				const base = 'team-color/' + result.index + '-base.png', maskFile = 'team-color/' + result.index + '-mask.png';
+				teamFiles.set(base, png(untinted)); teamFiles.set(maskFile, png(mask));
+				teamTextures.set(result.index, { base, mask: maskFile });
+			}
 			textureCache.set(key, result); return result;
 		} catch (e) { warnings.push('Texture ' + (t.Image || id) + ': ' + e.message); return undefined; }
 	}
@@ -137,6 +152,12 @@ async function createGLB(storage, name, options = {}) {
 		const normal = layer.NormalTextureID === undefined ? undefined : await texture(value(layer.NormalTextureID), 'normal');
 		const emissive = layer.EmissiveTextureID === undefined ? undefined : await texture(value(layer.EmissiveTextureID), 'emissive');
 		doc.materials.push({ pbrMetallicRoughness: pbr, doubleSided: !!(layer.Shading & 16), alphaMode: layer.FilterMode === 1 ? 'MASK' : layer.FilterMode >= 2 ? 'BLEND' : 'OPAQUE', ...(layer.FilterMode === 1 ? { alphaCutoff: 0.125 } : {}), ...(normal ? { normalTexture: normal } : {}), ...(orm ? { occlusionTexture: orm } : {}), ...(emissive ? { emissiveTexture: emissive, emissiveFactor: [1, 1, 1] } : {}) });
+		const editable = teamTextures.get(baseColorTexture?.index);
+		if (editable) {
+			const materialId = doc.materials.length - 1;
+			doc.materials[materialId].extras = { wc3_team_material: materialId };
+			teamMaterials.push({ material: materialId, ...editable });
+		}
 		if (material.Layers.length > 1 && !hd) warnings.push('Classic material layers are approximated with one glTF material.');
 	}
 	const nodes = model.Nodes.filter(Boolean), nodeMap = new Map(), jointMap = new Map();
@@ -206,9 +227,13 @@ async function createGLB(storage, name, options = {}) {
 					// WC3 transforms around absolute pivots. Rest joints sit at those
 					// pivots, with inverse binds translating vertices back into joint space.
 					// This also preserves negative/zero scale without matrix inversion.
-					const t = renderer.interp.vec3(vec3.create(), node.Translation) || vec3.create();
+					// Held/exact keys may return the source keyframe vector. Copy before
+					// adding pivots or normalizing signs so later samples/clips stay intact.
+					const t = vec3.create();
+					vec3.copy(t, renderer.interp.vec3(t, node.Translation) || t);
 					const s = renderer.interp.vec3(vec3.create(), node.Scaling) || vec3.fromValues(1, 1, 1);
-					const q = renderer.interp.quat(quat.create(), node.Rotation) || quat.create();
+					const q = quat.create();
+					quat.copy(q, renderer.interp.quat(q, node.Rotation) || q);
 					for (let c = 0; c < 3; c++) t[c] += node.PivotPoint[c] - parentPivot[c];
 					quat.normalize(q, q);
 					if (f && quat.dot(q, tracks[i].rotation.subarray((f - 1) * 4, f * 4)) < 0) for (let k = 0; k < 4; k++) q[k] *= -1;
@@ -239,7 +264,7 @@ async function createGLB(storage, name, options = {}) {
 	glb.write('glTF'); glb.writeUInt32LE(2, 4); glb.writeUInt32LE(glb.length, 8);
 	glb.writeUInt32LE(jsonPadded.length, 12); glb.write('JSON', 16); jsonPadded.copy(glb, 20);
 	const p = 20 + jsonPadded.length; glb.writeUInt32LE(bin.length, p); glb.writeUInt32LE(0x004e4942, p + 4); bin.copy(glb, p + 8);
-	return { data: glb, warnings: doc.asset.extras.warnings, document: doc };
+	return { data: glb, warnings: doc.asset.extras.warnings, document: doc, teamColor: { color: Array.from(teamColor), materials: teamMaterials }, teamFiles };
 }
 
 module.exports = { safePath, checkOutput, writeOutput, exportRaw, createGLB };

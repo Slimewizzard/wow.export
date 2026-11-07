@@ -5,6 +5,7 @@ const { parseModel, defaultSequence } = require('../warcraft3/model');
 const { decodeTexture, png } = require('../warcraft3/textures');
 const { exportRaw, createGLB, writeOutput, safePath, checkOutput } = require('../warcraft3/exporter');
 const { matchesKind, indexModelTypes } = require('../warcraft3/asset-types');
+const { exportEffectPackage } = require('../warcraft3/effects');
 const Warcraft3Preview = require('../warcraft3/preview');
 
 const previews = new WeakMap();
@@ -12,7 +13,7 @@ const previews = new WeakMap();
 module.exports = {
 	register() { this.registerNavButton('Warcraft III', 'cube.svg', InstallType.WARCRAFT3); },
 	data() {
-		return { browserWidth: 0.34, search: '', kind: 'models', art: 'hd', selection: [], files: [], modelTypes: Vue.markRaw(new Map()), classificationStatus: '', current: '', status: '', error: '', warnings: [], model: null, imageURL: '', textureInfo: '', textPreview: '', previewMessage: '', exportResults: [], loading: false, exporting: false, sequence: 0, frame: 0, playing: true, speed: 1, lod: 0, wireframe: false, team: '#ff0000', format: 'glb', animationMode: 'all', batchStatus: '', cancelExport: false, generation: 0 };
+		return { browserWidth: 0.34, search: '', kind: 'models', art: 'hd', selection: [], files: [], modelTypes: Vue.markRaw(new Map()), classificationStatus: '', current: '', status: '', error: '', warnings: [], model: null, imageURL: '', textureInfo: '', textPreview: '', previewMessage: '', exportResults: [], loading: false, exporting: false, sequence: 0, frame: 0, playing: true, speed: 1, lod: 0, wireframe: false, team: '#ff0000', format: 'glb', animationMode: 'all', effectSeconds: 3, effectFPS: 30, batchStatus: '', cancelExport: false, generation: 0 };
 	},
 	computed: {
 		storage() { return this.$core.view.warcraft3; },
@@ -71,12 +72,19 @@ module.exports = {
 				</div>
 				<div class="wc3-export">
 					<div class="wc3-export-options">
-						<select v-model="format" aria-label="Export format"><option value="glb">GLB model + textures</option><option value="png">PNG textures</option><option value="raw">Original files + model textures</option></select>
-						<select v-if="format === 'glb'" v-model="animationMode" aria-label="Animations to export"><option value="all">All animations</option><option value="current">Selected animation</option><option value="none">No animations</option></select>
+						<select v-model="format" aria-label="Export format"><option value="glb">GLB model + textures</option><option value="blender-fx">Blender + PopcornFX (experimental)</option><option value="png">PNG textures</option><option value="raw">Original files + model textures</option></select>
+						<select v-if="format === 'glb' || format === 'blender-fx'" v-model="animationMode" aria-label="Animations to export"><option value="all">All animations</option><option value="current">Selected animation</option><option v-if="format === 'glb'" value="none">No animations</option></select>
 						<label><input type="checkbox" v-model="$core.view.config.overwriteFiles" :disabled="exporting" /> Overwrite if already exists</label>
 						<button @click="exportSelection" :disabled="!selection.length || exporting || loading || $core.view.isBusy">Export {{ selection.length || '' }} selected</button>
 						<button v-if="exporting" @click="cancelExport = true">Cancel after current file</button>
 					</div>
+					<div v-if="format === 'blender-fx'" class="wc3-export-options wc3-hint">
+						<label>Bake seconds <input type="number" v-model.number="effectSeconds" min="0.1" max="30" step="0.1" style="width: 65px" /></label>
+						<label>FPS <select v-model.number="effectFPS"><option :value="15">15</option><option :value="30">30</option><option :value="60">60</option></select></label>
+						<span>Bake seconds applies to each exported animation's particles. Full skeletal clips are retained. Sprites only.</span>
+						<button @click="revealBlenderImporter">Show Blender importer</button>
+					</div>
+					<div v-if="format === 'blender-fx' && model && !model.ParticleEmitterPopcorns?.length" class="wc3-hint">No PopcornFX: exports the model and chosen animations. Classic particles are not baked.</div>
 					<div class="wc3-output"><span :title="$core.view.config.exportDirectory">Output: {{ $core.view.config.exportDirectory || 'Choose an output folder' }}</span><button @click="chooseOutput" :disabled="exporting">Choose folder…</button></div>
 					<div v-if="batchStatus" role="status">{{ batchStatus }}</div>
 					<details v-if="exportResults.length" class="wc3-export-results" open>
@@ -91,6 +99,7 @@ module.exports = {
 		</div>
 	`,
 	watch: {
+		format(value) { if (value === 'blender-fx' && this.animationMode === 'none') this.animationMode = 'all'; },
 		selection(values) { if (values.length) this.preview(values[0]); },
 		kind() { this.selection = []; this.format = this.kind === 'models' ? 'glb' : this.kind === 'textures' ? 'png' : 'raw'; },
 		art() { this.selection = []; },
@@ -182,6 +191,7 @@ module.exports = {
 		fit() { previews.get(this)?.fit(); },
 		scrub(event) { this.playing = false; this.frame = Number(event.target.value); const p = previews.get(this); if (p?.renderer) p.renderer.rendererData.frame = this.frame; },
 		revealExport(file) { nw.Shell.showItemInFolder(file); },
+		revealBlenderImporter() { this.revealExport(path.join(nw.__dirname, 'addons/blender/io_scene_wc3fx.py')); },
 		chooseOutput() {
 			const input = document.createElement('input'); input.type = 'file'; input.setAttribute('nwdirectory', '');
 			input.setAttribute('nwdirectorydesc', 'Choose Warcraft III export folder');
@@ -191,7 +201,7 @@ module.exports = {
 			if (this.exporting || this.$core.view.isBusy) return;
 			if (!this.$core.view.config.exportDirectory) { this.chooseOutput(); return; }
 			const names = [...this.selection], format = this.format, notes = [], out = this.$core.view.config.exportDirectory;
-			const options = { overwrite: this.$core.view.config.overwriteFiles, animations: this.animationMode !== 'none', sequence: this.animationMode === 'current' ? this.sequence : -1, teamColor: this.teamColor, lod: this.lod, progress: text => this.batchStatus = text };
+			const options = { overwrite: this.$core.view.config.overwriteFiles, animationMode: this.animationMode, animations: this.animationMode !== 'none', sequence: this.animationMode === 'current' ? this.sequence : -1, effectSeconds: this.effectSeconds, effectFPS: this.effectFPS, teamColor: this.teamColor, lod: this.lod, progress: text => this.batchStatus = text };
 			this.exporting = true; this.cancelExport = false; this.error = ''; this.exportResults = []; let success = 0, failed = 0, skipped = 0;
 			const lock = this.$core.create_busy_lock();
 			try {
@@ -200,13 +210,16 @@ module.exports = {
 					this.batchStatus = 'Exporting ' + path.basename(name) + '…';
 					let destination;
 					try {
-						if ((format === 'glb' && !/\.mdx$/i.test(name)) || (format === 'png' && !/\.(dds|blp)$/i.test(name))) { skipped++; continue; }
-						const outputName = format === 'glb' ? name.replace(/\.mdx$/i, '.glb') : format === 'png' ? name + '.png' : name;
+						if ((format === 'glb' && !/\.mdx$/i.test(name)) || (format === 'png' && !/\.(dds|blp)$/i.test(name)) || (format === 'blender-fx' && !/\.(mdx|pkb|pkfx)$/i.test(name))) { skipped++; continue; }
+						const outputName = format === 'glb' ? name.replace(/\.mdx$/i, '.glb') : format === 'png' ? name + '.png' : format === 'blender-fx' ? name + '.wc3fx' : name;
 						destination = safePath(out, outputName);
 						await checkOutput(out, outputName, options.overwrite);
 						if (format === 'glb') {
 							const result = await createGLB(this.storage, name, options);
 							await writeOutput(out, outputName, result.data, options.overwrite);
+							notes.push(...result.warnings.map(w => path.basename(name) + ': ' + w));
+						} else if (format === 'blender-fx') {
+							const result = await exportEffectPackage(this.storage, name, out, { ...options, sequence: name === this.current ? this.sequence : -1 });
 							notes.push(...result.warnings.map(w => path.basename(name) + ': ' + w));
 						} else if (format === 'png') {
 							await writeOutput(out, outputName, png(decodeTexture(await this.storage.readFile(name))), options.overwrite);
@@ -215,14 +228,17 @@ module.exports = {
 						}
 						this.exportResults.push({ path: destination, existing: false });
 						success++;
-					} catch (e) { if (e.code === 'EEXIST') { skipped++; notes.push('Already exists: ' + name); if (destination) this.exportResults.push({ path: destination, existing: true }); } else { failed++; notes.push(name + ': ' + e.message); } }
+					} catch (e) {
+						if (e.code === 'EEXIST') { skipped++; notes.push('Already exists: ' + name); if (destination) this.exportResults.push({ path: destination, existing: true }); }
+						else { failed++; notes.push(name + ': ' + e.message); if (!this.error) this.error = path.basename(name) + ': ' + e.message; }
+					}
 					await new Promise(resolve => setTimeout(resolve, 0));
 				}
 				this.warnings = [...new Set(notes)];
 				this.batchStatus = (this.cancelExport ? 'Cancelled. ' : '') + success + ' exported · ' + failed + ' failed · ' + skipped + ' skipped';
 				const first = this.exportResults[0]?.path;
 				const actions = first ? { [this.exportResults.length > 1 ? 'Show first file in folder' : 'Show file in folder']: () => this.revealExport(first) } : null;
-				this.$core.setToast(failed ? 'error' : 'success', this.batchStatus, actions);
+				this.$core.setToast(failed ? 'error' : 'success', failed ? this.batchStatus + ' — ' + this.error : this.batchStatus, actions);
 			} finally { this.exporting = false; lock[Symbol.dispose](); }
 		}
 	},

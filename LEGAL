@@ -225,3 +225,8 @@ BLP1 JPEG decoder bundled in war3-model — Copyright 2011 notmasteryet — Apac
 
 CascLib TVFS format reference — Copyright (c) 2014 Ladislav Zezula — MIT
     CascLib.LICENSE
+
+W3ModelViewer PopcornFX simulator — Copyright (c) 2026 Darithos — MIT
+    tools/wc3-effects/vendor/LICENSE
+    The effect helper uses the self-contained .NET runtime; its license and
+    third-party notices accompany the packaged helper binaries.

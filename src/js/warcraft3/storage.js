@@ -192,8 +192,15 @@ class Warcraft3Storage {
 	}
 	resolveTexture(reference, modelPath) {
 		const ref = normalize(reference).replace(/^\/+/, '');
-		const base = ref.replace(/\.(tif|tga|blp|dds)$/i, '');
+		const base = ref.replace(/\.(tif|tga|blp|dds|png)$/i, '');
 		const variants = [...new Set([ref, base + '.dds', base + '.blp', base + '.tga'])];
+		return this.resolveAsset(ref, modelPath, variants);
+	}
+	resolveEffect(reference, modelPath) {
+		const ref = normalize(reference).replace(/^\/+/, ''), base = ref.replace(/\.(pkfx|pkb)$/i, '');
+		return this.resolveAsset(ref, modelPath, [base + '.pkb', ref, base + '.pkfx']);
+	}
+	resolveAsset(reference, modelPath, variants = [normalize(reference).replace(/^\/+/, '')]) {
 		const model = normalize(modelPath);
 		const modEnd = model.lastIndexOf('.w3mod/');
 		const prefixes = [];
