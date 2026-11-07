@@ -72,7 +72,7 @@ class Settings:
     importLiquid = True
     importUVAnimations = True
 
-    def __init__(self, useAlpha = True, createVertexGroups = False, allowDuplicates = False, importWMO = True, importWMOSets = True, importM2 = True, importGOBJ = True, importTextures = True, useTerrainBlending = True, createEmissiveMaterials = True, createDoodadSetCollections = False, importLiquid = True, importUVAnimations = True):
+    def __init__(self, useAlpha = True, createVertexGroups = False, allowDuplicates = False, importWMO = True, importWMOSets = True, importM2 = True, importGOBJ = True, importTextures = True, useTerrainBlending = True, createEmissiveMaterials = True, createDoodadSetCollections = False, importLiquid = True, importUVAnimations = True, importEffects = False, fireLighting = False):
         self.useAlpha = useAlpha
         self.createVertexGroups = createVertexGroups
         self.allowDuplicates = allowDuplicates
@@ -86,6 +86,8 @@ class Settings:
         self.createDoodadSetCollections = createDoodadSetCollections
         self.importLiquid = importLiquid
         self.importUVAnimations = importUVAnimations
+        self.importEffects = importEffects
+        self.fireLighting = fireLighting
 
 class ImportWoWOBJ(bpy.types.Operator, ImportHelper):
     '''Load a Wavefront OBJ File with additional ADT metadata'''
@@ -112,6 +114,10 @@ class ImportWoWOBJ(bpy.types.Operator, ImportHelper):
     importLiquid: bpy.props.BoolProperty(name = 'Import Liquid', description = 'If exported, liquid chunks will be imported as plane geometry', default = 1)
     importUVAnimations: bpy.props.BoolProperty(name = 'Import UV Animations', description = 'If available in M2 models, UV texture animations will be imported and set up automatically', default = 1)
 
+    importEffects: bpy.props.BoolProperty(name='Import M2 Effects (Experimental)', description='Read effects sidecar and create approximate lights and looping sprites; review custom properties for limitations', default=False)
+
+    fireLighting: bpy.props.BoolProperty(name='Fire Lighting Preset', description='With M2 Effects enabled, add adjustable warm lights for recognized fire/flame particle textures. Approximate lighting, including shadowless fill', default=False)
+
     def execute(self, context):
         settings = Settings(
             useAlpha = self.useAlpha,
@@ -126,7 +132,9 @@ class ImportWoWOBJ(bpy.types.Operator, ImportHelper):
             createEmissiveMaterials = self.createEmissiveMaterials,
             createDoodadSetCollections = self.createDoodadSetCollections,
             importLiquid = self.importLiquid,
-            importUVAnimations = self.importUVAnimations
+            importUVAnimations = self.importUVAnimations,
+            importEffects = self.importEffects,
+            fireLighting = self.fireLighting
         )
         settings._import_cache_cleared = False
 
@@ -152,6 +160,10 @@ class ImportWoWOBJ(bpy.types.Operator, ImportHelper):
         box.prop(self, 'importGOBJ')
         box.prop(self, 'importTextures')
         box.prop(self, 'importUVAnimations')
+        box.prop(self, 'importEffects')
+        row = box.row()
+        row.enabled = self.importEffects
+        row.prop(self, 'fireLighting')
         box.prop(self, 'useAlpha')
         box.prop(self, 'createVertexGroups')
         box.prop(self, 'allowDuplicates')

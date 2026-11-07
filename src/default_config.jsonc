@@ -48,6 +48,7 @@
 	"overwriteFiles": true,
 	"exportM2Bones": false,
 	"exportM2Meta": true,
+	"exportM2Effects": false,
 	"exportWMOMeta": true,
 	"exportBLPMeta": false,
 	"exportFoliageMeta": false,

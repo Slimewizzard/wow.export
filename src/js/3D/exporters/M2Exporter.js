@@ -721,7 +721,7 @@ class M2Exporter {
 		const skin = await this.m2.getSkin(0);
 
 		const config = core.view.config;
-		const exportMeta = core.view.config.exportM2Meta;
+		const exportMeta = config.exportM2Meta || config.exportM2Effects;
 		const exportBones = core.view.config.exportM2Bones;
 
 		const obj = new OBJWriter(out);
@@ -809,6 +809,16 @@ class M2Exporter {
 					mtlName: textureEntry?.matName
 				}, texture);
 			}
+
+			if (config.exportM2Effects) {
+                const { decodeEffects } = require('../loaders/M2Effects');
+                const effects = decodeEffects(this.m2.data.raw);
+                effects.textures = textures;
+                const sidecar = new JSONWriter(ExportHelper.replaceExtension(out, '.effects.json'));
+                for (const [key, value] of Object.entries(effects)) sidecar.addProperty(key, value);
+                await sidecar.write(config.overwriteFiles);
+                fileManifest?.push({ type: 'EFFECTS', fileDataID: this.fileDataID, file: sidecar.out });
+            }
 
 			json.addProperty('fileType', 'm2');
 			json.addProperty('fileDataID', this.fileDataID);

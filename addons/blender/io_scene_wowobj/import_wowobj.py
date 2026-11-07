@@ -9,6 +9,7 @@ from collections import defaultdict
 from math import radians
 from mathutils import Quaternion
 from .animation_processor import process_texture_transform
+from .m2_glow import apply_m2_glow, bind_emission_control
 
 IS_B40 = bpy.app.version >= (4, 0, 0)
 
@@ -1291,7 +1292,7 @@ def has_advanced_m2_data(json_info):
             'skin' in json_info and 
             'textureUnits' in json_info['skin'])
 
-def createAdvancedM2Material(material_name, texture_unit, materials, textures, texture_combos, settings, base_dir, texture_transforms=None, texture_transforms_lookup=None, fallback_texture=None):
+def createAdvancedM2Material(material_name, texture_unit, materials, textures, texture_combos, settings, base_dir, texture_transforms=None, texture_transforms_lookup=None, fallback_texture=None, metadata=None):
     shader_id = texture_unit['shaderID']
     texture_count = texture_unit['textureCount']
     material_index = texture_unit['materialIndex']
@@ -1531,6 +1532,19 @@ def createAdvancedM2Material(material_name, texture_unit, materials, textures, t
         if blending_mode not in {5, 6}:
             node_tree.links.new(alpha_texture.outputs['Alpha'], principled.inputs['Alpha'])
     
+    if metadata and blending_mode == 4 and len(texture_nodes) == 1 and settings.createEmissiveMaterials:
+        from .m2_mesh_tint import apply_mesh_tint
+        apply_mesh_tint(material, main_texture, texture_unit, metadata, settings)
+
+    if metadata and len(texture_indices) == 2 and len(texture_nodes) == 2:
+        apply_m2_glow(material, principled, texture_nodes, texture_unit, metadata, settings)
+    if metadata:
+        from .m2_dyes import apply_dye_controls
+        base_name = textures[texture_indices[0]].get('fileNameInternal', '') if texture_indices else ''
+        apply_dye_controls(material, metadata, base_dir, base_name)
+    if len(texture_nodes) == 2:
+        from .m2_reflection import apply_reflection
+        apply_reflection(material, texture_nodes[0], texture_nodes[1], texture_unit)
     return material
 
 def createBlendedTerrain(materialName, textureLocation, layers, baseDir, extension_mode='REPEAT'):
@@ -1973,7 +1987,7 @@ def importWoWOBJ(objectFile, givenParent = None, settings = None):
                             json_texture_combos = json_info.get('textureCombos', [])
                             json_texture_transforms = json_info.get('textureTransforms', [])
                             json_texture_transforms_lookup = json_info.get('textureTransformsLookup', [])
-                            material = createAdvancedM2Material(materialName, texture_unit_found, json_materials, json_textures, json_texture_combos, settings, baseDir, json_texture_transforms, json_texture_transforms_lookup, textureLocation)
+                            material = createAdvancedM2Material(materialName, texture_unit_found, json_materials, json_textures, json_texture_combos, settings, baseDir, json_texture_transforms, json_texture_transforms_lookup, textureLocation, json_info)
                         else:
                             material = createStandardMaterial(materialName, textureLocation, -1, False, textureExtensionMode)
                     else:
@@ -2005,7 +2019,7 @@ def importWoWOBJ(objectFile, givenParent = None, settings = None):
                                 json_texture_combos = json_info.get('textureCombos', [])
                                 json_texture_transforms = json_info.get('textureTransforms', [])
                                 json_texture_transforms_lookup = json_info.get('textureTransformsLookup', [])
-                                materialB[bm] = (materialBName, createAdvancedM2Material(materialBName, texture_unit_found, json_materials, json_textures, json_texture_combos, settings, baseDir, json_texture_transforms, json_texture_transforms_lookup, textureLocation))
+                                materialB[bm] = (materialBName, createAdvancedM2Material(materialBName, texture_unit_found, json_materials, json_textures, json_texture_combos, settings, baseDir, json_texture_transforms, json_texture_transforms_lookup, textureLocation, json_info))
                             else:
                                 materialB[bm] = (materialBName, createStandardMaterial(materialBName, textureLocation, bm, settings.createEmissiveMaterials, textureExtensionMode))
                         else:
@@ -2358,4 +2372,11 @@ def importWoWOBJ(objectFile, givenParent = None, settings = None):
         _print_placement_summary(placementStats)
     elif use_csv:
         print(f"[WoWOBJ][{fileName}] Placement CSV not found: {csvPath}")
+    bind_emission_control(obj)
+    if getattr(settings, "importEffects", False):
+        from .m2_effects import reconstruct_effects
+        reconstruct_effects(obj, objectFile)
+        if getattr(settings, "fireLighting", False):
+            from .fire_lighting import apply_fire_lighting
+            apply_fire_lighting(obj)
     return obj

@@ -64,7 +64,9 @@ class MTLWriter {
 			await writer.writeLine('map_Kd ' + materialFile);
 		}
 
+		const completion = require('stream/promises').finished(writer.stream);
 		writer.close();
+		await completion;
 	}
 }
 

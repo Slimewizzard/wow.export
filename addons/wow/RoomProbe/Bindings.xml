@@ -1,0 +1,5 @@
+<Bindings>
+    <Binding name="ROOMPROBE_RECORD_COLOR" header="ROOMPROBE">
+        if RoomProbeRooms then RoomProbeRooms.RecordColor() end
+    </Binding>
+</Bindings>

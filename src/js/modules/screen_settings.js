@@ -183,7 +183,10 @@ module.exports = {
 				</ul>
 			</div>
 			<div>
-				<h1>Export M2 Bone Data</h1>
+				<h1>Export M2 Effects (Experimental)</h1>
+                <p>For OBJ exports, include lights and emitter data in an effects sidecar. The Blender importer can create approximate lights and animated sprites. Requires exported textures; some effects need manual adjustment.</p>
+                <label class="ui-checkbox"><input type="checkbox" v-model="$core.view.configEdit.exportM2Effects"/><span>Enable</span></label>
+            </div><div><h1>Export M2 Bone Data</h1>
 				<p>If enabled, bone data will be exported in a relative _bones.json file.</p>
 				<label class="ui-checkbox">
 					<input type="checkbox" v-model="$core.view.configEdit.exportM2Bones"/>

@@ -241,7 +241,9 @@ class OBJWriter {
 			}
 		}
 
+		const completion = require('stream/promises').finished(writer.stream);
 		writer.close();
+		await completion;
 	}
 }
 
